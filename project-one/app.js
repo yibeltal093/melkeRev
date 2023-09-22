@@ -3,7 +3,9 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const userDao = require('./repository/userDao');
+const ticketDao = require('./repository/TicketDao');
 const jwtUtil = require('./utility/jwt_util');
+const uuid = require('uuid');
 
 const app = express();
 
@@ -28,6 +30,96 @@ function validateNewItem(req, res, next){
         next();
     }
 }
+function isTicketValid(req, res, next){
+    if(!req.body.amount){
+        res.send({
+            message: 'Amount is required'
+        })
+        req.body.valid = false;
+        next();
+    }else if(!req.body.description){
+        res.send({
+            message: 'Description is required'
+        })
+        req.body.valid = false;
+        next();
+    }else{
+        req.body.valid = true;
+        next();
+    }
+}
+
+
+app.get('/tickets/:id', async (req, res)=>{
+    const ticketID = req.params.id;
+    try{
+        const ticket = await ticketDao.retrieveTicketByID(ticketID);
+        res.send({
+            Ticket: ticket,
+            message: 'Ticket is displayed'
+        });
+    }catch(error){
+        console.log(error);
+        res.status(400);
+    }
+})
+
+// app.put('/update/:id', (req, res)=>{
+//     const ticketid = req.params.id;
+    
+//     try{
+//         const ticket = ticketDao.updateticketStatus(ticketid, req.body.status);
+//         res.send(ticket.ticket_id);
+//     }catch(error){
+//         console.error(error);
+//         res.status(500).json({Error: 'Something Went wrong.'});
+//     }
+
+// })
+
+app.post('/submit-ticket', isTicketValid, (req, res)=>{
+    const body = req.body;
+    let username = req.body.username;
+    const token = req.headers.authorization.split(' ')[1] //['Bearer' '<token>']
+    jwtUtil.verifyTokenandReturnPayLoad(token)
+        .then((payload)=>{
+            if(payload.role === 'user'){
+                username = payload.username;
+                if(req.body.valid){
+                    const ticket = ticketDao.submitTicket(uuid.v4(), req.body.ticket_status,
+                     req.body.amount, req.body.description, req.body.reviewer, username)
+                        .then((data)=>{
+                            res.statusCode = 201;
+                            res.send({
+                                message: 'ticket is successfully submitted.'
+                            })
+                        })
+                        .catch((err)=>{
+                            res.statusCode = 400;
+                            res.send({
+                                Ticket: ticket,
+                                message: 'ticket could not be submited'
+                            })
+                        })
+                    }
+            }else{
+                res.statusCode = 401;
+                res.send({
+                    message: `You are not a user you are: ${payload.role} `
+                })
+            }
+        })
+        .catch((err)=>{
+            console.error(err);
+            res.statusCode = 401;
+            res.send({
+                message: 'Faild to Authenticate Token'
+            })
+        })
+
+    
+    
+})
 
 app.post('/register', validateNewItem, async (req, res)=>{
     const body = req.body;
@@ -60,10 +152,6 @@ app.post('/register', validateNewItem, async (req, res)=>{
         }
     }
     
-});
-
-app.get('/', (req, res)=>{
-    res.send('running');
 });
 
 app.post('/login', (req, res)=>{
