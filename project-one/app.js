@@ -49,33 +49,86 @@ function isTicketValid(req, res, next){
     }
 }
 
+function isObjectEmpty(obj){
+    for(const prop in obj){
+        if(Object.hasOwn(obj, prop)){
+            return false;
+        }
+    }
+    return true;
+}
 
 app.get('/tickets/:id', async (req, res)=>{
     const ticketID = req.params.id;
+
     try{
+    
         const ticket = await ticketDao.retrieveTicketByID(ticketID);
+        console.log(ticket);
+        if(!isObjectEmpty(ticket)){
+            res.send({
+                Ticket: ticket,
+                message: 'Ticket is displayed'
+            });
+        }else{
+
+            res.status(400);
+            res.send("Tikcet not found");
+        }
+    }catch(error){
+        res.status(400);
+        res.send("Server issue");
+    }
+        
+        
+    
+})
+app.get('/ticket/:status', async (req, res)=>{
+    const status = req.params.status;
+    try{
+        const userTikcet = await ticketDao.viewPendingTickets(status);
         res.send({
-            Ticket: ticket,
-            message: 'Ticket is displayed'
+            Ticket: userTikcet,
+            message: `Tickets with status: `
         });
     }catch(error){
         console.log(error);
         res.status(400);
     }
 })
-
-// app.put('/update/:id', (req, res)=>{
-//     const ticketid = req.params.id;
-    
-//     try{
-//         const ticket = ticketDao.updateticketStatus(ticketid, req.body.status);
-//         res.send(ticket.ticket_id);
-//     }catch(error){
-//         console.error(error);
-//         res.status(500).json({Error: 'Something Went wrong.'});
-//     }
-
-// })
+app.put('/update/:id', async (req, res)=>{
+    const ticketid = req.params.id;
+    const currentTicket = await ticketDao.retrieveTicketByID(ticketid);
+    const token = req.headers.authorization.split(' ')[1]; //['Bearer' '<token>']
+    jwtUtil.verifyTokenandReturnPayLoad(token)
+        .then((payload)=>{
+            if(!isObjectEmpty(currentTicket)){
+                if(payload.role === 'admin'){
+                    username = payload.username;
+                        const ticket =  ticketDao.updateticketStatus(ticketid, req.body.status, username);
+                        res.send({
+                            message: `Ticket status is updated to: ${req.body.status}`
+                        });
+                }else{
+                    res.statusCode = 401;
+                    res.send({
+                        message: `You are not an admin you are: ${payload.role} `
+                    })
+                }
+            }else{
+                res.send({
+                    message: 'There is no ticke with this id'
+                })
+            }
+        })
+        .catch((err)=>{
+            console.error(err);
+            res.statusCode = 401;
+            res.send({
+                message: 'Faild to Authenticate Token'
+            })
+        })
+})
 
 app.post('/submit-ticket', isTicketValid, (req, res)=>{
     const body = req.body;
@@ -86,8 +139,8 @@ app.post('/submit-ticket', isTicketValid, (req, res)=>{
             if(payload.role === 'user'){
                 username = payload.username;
                 if(req.body.valid){
-                    const ticket = ticketDao.submitTicket(uuid.v4(), req.body.ticket_status,
-                     req.body.amount, req.body.description, req.body.reviewer, username)
+                    const ticket = ticketDao.submitTicket(uuid.v4(), username, req.body.status,
+                     req.body.amount, req.body.description, req.body.reviewer)
                         .then((data)=>{
                             res.statusCode = 201;
                             res.send({
@@ -116,9 +169,7 @@ app.post('/submit-ticket', isTicketValid, (req, res)=>{
                 message: 'Faild to Authenticate Token'
             })
         })
-
-    
-    
+   
 })
 
 app.post('/register', validateNewItem, async (req, res)=>{

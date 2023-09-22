@@ -11,19 +11,56 @@ function retrieveTicketByID(ticket_id){
     const params = {
         TableName: 'tickets',
         Key: {
-            ticket_id,
-            status: 'approved'
+            ticket_id
         }
     }
     return docClient.get(params).promise();
 }
 //=================To do ===============
-function updateTickets(){}
-function employeeFaildProcess(){}
-function viewPreviousSubmisionByEmail(){}
+function updateticketStatus(ticket_id, status, reviewer){
+    const params = {
+        TableName: 'tickets',
+        Key: {
+            ticket_id
+        },
+        UpdateExpression: 'set #n = :value, #r = :review',
+        ExpressionAttributeNames: {
+            '#n': 'status',
+            '#r': 'reviewer'
+        },
+        ExpressionAttributeValues: {
+            ':value': status,
+            ':review': reviewer
+        }
+    }
+    return docClient.update(params).promise();
+}
+
+function viewPreviousSubmisionByUsername(username){
+    const params = {
+        TableName: 'tickets',
+        ExpressionAttributeValues: {
+            ':value':{ S: username}
+        },
+        KeyConditionExpression: "author = :value",
+        ProjectionExpression: "author", //"status", "description"
+    }
+    return docClient.query(params).promise();
+}
+function viewPendingTickets(status){
+    const params = {
+        TableName: 'tickets',
+        FilterExpression: "#status = :value",
+        ExpressionAttributeNames: {"#status": "status"},
+        ExpressionAttributeValues: {
+            ':value': status
+        }
+    }
+    return docClient.scan(params).promise();
+}
 //=====================================
 
-function submitTicket(ticket_id, status, amount, description, reviewer, user){
+function submitTicket(ticket_id, author, status, amount, description, reviewer){
     const params = {
         TableName: 'tickets',
         Key: {
@@ -31,36 +68,23 @@ function submitTicket(ticket_id, status, amount, description, reviewer, user){
         },
         Item: {
             ticket_id,
-            status,
+            status: "Pendding",
             amount,
             description,
             reviewer,
-            user
+            author: author
         }
     }
     return docClient.put(params).promise();
 
 }
 
-function updateticketStatus(id, status){
-    const params = {
-        TableName: 'tickets',
-        Key: {
-            ticket_id: id
-        },
-        UpdateExpression: 'set #n = :value',
-        ExpressionAttributeNames: {
-            '#n': 'status'
-        },
-        ExpressionAttributeValues: {
-            ':value': status
-        }
-    }
-    return docClient.update(params).promise();
-}
+
 
 module.exports = {
     retrieveTicketByID,
     submitTicket,
-    updateticketStatus
+    updateticketStatus,
+    viewPendingTickets,
+    viewPreviousSubmisionByUsername
 }
