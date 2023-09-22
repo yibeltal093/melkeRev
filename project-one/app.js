@@ -2,10 +2,12 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
-const userDao = require('./repository/userDao');
-const ticketDao = require('./repository/TicketDao');
-const jwtUtil = require('./utility/jwt_util');
-const uuid = require('uuid');
+// const userDao = require('./repository/userDao');
+// const ticketDao = require('./repository/TicketDao');
+// const jwtUtil = require('./utility/jwt_util');
+// const uuid = require('uuid');
+const ticketRouter = require('./routes/TicketRoute');
+const userRouter = require('./routes/UserRoute');
 
 const app = express();
 
@@ -20,7 +22,7 @@ app.use(session({
 }));
 
 //Check if the item is valid
-function validateNewItem(req, res, next){
+function validateNewUser(req, res, next){
     if(!req.body.username || !req.body.password || !req.body.role){
         req.body.valid = false;
         next();
@@ -49,249 +51,25 @@ function isTicketValid(req, res, next){
     }
 }
 
-function isObjectEmpty(obj){
-    for(const prop in obj){
-        if(Object.hasOwn(obj, prop)){
-            return false;
-        }
-    }
-    return true;
-}
-
-app.get('/tickets/:id', async (req, res)=>{
-    const ticketID = req.params.id;
-
-    try{
-    
-        const ticket = await ticketDao.retrieveTicketByID(ticketID);
-        console.log(ticket);
-        if(!isObjectEmpty(ticket)){
-            res.send({
-                Ticket: ticket,
-                message: 'Ticket is displayed'
-            });
-        }else{
-
-            res.status(400);
-            res.send("Tikcet not found");
-        }
-    }catch(error){
-        res.status(400);
-        res.send("Server issue");
-    }
-        
-        
-    
-})
-app.get('/ticket/:status', async (req, res)=>{
-    const status = req.params.status;
-    try{
-        const userTikcet = await ticketDao.viewPendingTickets(status);
-        res.send({
-            Ticket: userTikcet,
-            message: `Tickets with status: `
-        });
-    }catch(error){
-        console.log(error);
-        res.status(400);
-    }
-})
-app.put('/update/:id', async (req, res)=>{
-    const ticketid = req.params.id;
-    const currentTicket = await ticketDao.retrieveTicketByID(ticketid);
-    const token = req.headers.authorization.split(' ')[1]; //['Bearer' '<token>']
-    jwtUtil.verifyTokenandReturnPayLoad(token)
-        .then((payload)=>{
-            if(!isObjectEmpty(currentTicket)){
-                if(payload.role === 'admin'){
-                    username = payload.username;
-                        const ticket =  ticketDao.updateticketStatus(ticketid, req.body.status, username);
-                        res.send({
-                            message: `Ticket status is updated to: ${req.body.status}`
-                        });
-                }else{
-                    res.statusCode = 401;
-                    res.send({
-                        message: `You are not an admin you are: ${payload.role} `
-                    })
-                }
-            }else{
-                res.send({
-                    message: 'There is no ticke with this id'
-                })
-            }
-        })
-        .catch((err)=>{
-            console.error(err);
-            res.statusCode = 401;
-            res.send({
-                message: 'Faild to Authenticate Token'
-            })
-        })
-})
-
-app.post('/submit-ticket', isTicketValid, (req, res)=>{
-    const body = req.body;
-    let username = req.body.username;
-    const token = req.headers.authorization.split(' ')[1] //['Bearer' '<token>']
-    jwtUtil.verifyTokenandReturnPayLoad(token)
-        .then((payload)=>{
-            if(payload.role === 'user'){
-                username = payload.username;
-                if(req.body.valid){
-                    const ticket = ticketDao.submitTicket(uuid.v4(), username, req.body.status,
-                     req.body.amount, req.body.description, req.body.reviewer)
-                        .then((data)=>{
-                            res.statusCode = 201;
-                            res.send({
-                                message: 'ticket is successfully submitted.'
-                            })
-                        })
-                        .catch((err)=>{
-                            res.statusCode = 400;
-                            res.send({
-                                Ticket: ticket,
-                                message: 'ticket could not be submited'
-                            })
-                        })
-                    }
-            }else{
-                res.statusCode = 401;
-                res.send({
-                    message: `You are not a user you are: ${payload.role} `
-                })
-            }
-        })
-        .catch((err)=>{
-            console.error(err);
-            res.statusCode = 401;
-            res.send({
-                message: 'Faild to Authenticate Token'
-            })
-        })
-   
-})
-
-app.post('/register', validateNewItem, async (req, res)=>{
-    const body = req.body;
-    console.log(body);
-    // const existedUser = await userDao.retrieveByUsername(JSON.stringify(body.username));
-    // console.log(`current user is: ${existedUser}`);
-    if(req.body.valid){
-        const currUser = await userDao.retrieveByUsername(req.body.username);
-        //console.log(currUser.Item);
-        if((currUser.Item)){
-            res.statusCode = 400;
-            res.send({
-                message: `Item already existed with username: ${currUser.Item.username}`
-            })
-        }else{
-            const user = userDao.registerUser(req.body.username, req.body.password, req.body.role)
-            .then((data)=>{
-                res.statusCode = 201;
-                res.send({
-                    message: `User successfully created`
-                })
-            })
-            .catch((err)=>{
-                console.log(err);
-                res.statusCode = 401;
-                res.send({
-                    message :`Unable to create user`
-                })
-            })
-        }
-    }
-    
-});
-
-app.post('/login', (req, res)=>{
-    const username = req.body.username;
-    const password = req.body.password;
-
-    userDao.retrieveByUsername(username)
-        .then((data)=>{
-            const userItem = data.Item;
-
-            if(userItem.password === password){
-
-               // ====== This is a session sign up ============= NOT recomended
-                // const currentSession = req.session;
-                // currentSession.username = username; //attach username to curr session property
-                // currentSession.role = userItem.role; //attach role to curr session property
-
-                const token = jwtUtil.createJWT(userItem.username, userItem.role);
-                res.send({
-                    message: 'Successfuly Authenticated',
-                    token: token
-                });
-            }else{
-                res.statusCode = 400;
-                res.send({
-                    'message': 'Invalid Credentials'
-                })
-            }
-        })
-        .catch((err)=>{
-            console.error(err);
-            res.send({
-                message: 'Faild to authenticate user'
-            })
-        })
-})
-
-app.get('/employeeEndpoint', (req, res)=>{
-    //split the main token part to get payload
-    const token = req.headers.authorization.split(' ')[1] //['Bearer' '<token>']
-
-    jwtUtil.verifyTokenandReturnPayLoad(token)
-        .then((payload)=>{
-            if(payload.role === 'user'){
-                res.send({
-                    message: `Welcome user: ${payload.username}`
-                })
-            }else{
-                res.statusCode = 401;
-                res.send({
-                    message: `You are not a user you are: ${payload.role} `
-                })
-            }
-        })
-        .catch((err)=>{
-            console.error(err);
-            res.statusCode = 401;
-            res.send({
-                message: 'Faild to Authenticate Token'
-            })
-        })
-})
+app.get('/tickets/:id', ticketRouter.findTicketById);
+app.get('/ticket-user/:user', ticketRouter.findTicketByUsername);
 
 
-app.get('/adminEndpoint', (req, res)=>{
+app.get('/ticket-status/:status', ticketRouter.findTicketByStatus);
 
-    const token = req.header.authorization.split(' ')[1] //Takes second part of the split
 
-    jwtUtil.verifyTokenandReturnPayLoad(token)
-        .then((payload)=>{
-            if(payload.role === 'admin'){
-                res.send({
-                    message: `Welcome Admin: ${payload.username}`
-                })
-            }else{
-                res.statusCode = 401;
-                res.send({
-                    message: `You are not an admin, you are a ${payload.role}`
-                })
-            }
-        })
-        .catch((err)=>{
-            console.log(err);
-            res.statusCode = 401;
-            res.send({
-                message: `Failed to authenticate Token`
-            })
-        })
-})
+app.put('/ticket/update/:id', ticketRouter.updateTicketStatus);
+
+app.post('/submit-ticket', isTicketValid, ticketRouter.submitTicket)
+
+app.post('/register', validateNewUser, userRouter.registerUser);
+
+app.post('/login', userRouter.userLogin);
+
+app.get('/userEndpoint', userRouter.checkUserEndpoint)
+
+
+app.get('/adminEndpoint', userRouter.checkAdminEndpoint)
 // app.get('/employeeEndPoint', (req, res)=>{
 //     const currentSession = req.session;
 
