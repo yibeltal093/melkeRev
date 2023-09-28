@@ -6,12 +6,6 @@ const jwtUtil = require('../utility/jwt_util');
 const uuid = require('uuid');
 let pendingTickets = new Set();
 
-function storePenddingTickets(ticketId){
-    pendingTickets.add(ticketId);
-
-    console.log(...pendingTickets);
-    return pendingTickets;
-}
 
 function isObjectEmpty(obj){
     for(const prop in obj){
@@ -60,13 +54,16 @@ const findTicketByUsername = async (req, res)=>{
     }
 }
 
-const findTicketByStatus = async (req, res)=>{
-    const status = req.params.status;
+const findPenddingTickets = async (req, res)=>{
     try{
-        const tikcetStatus = await ticketDao.viewPendingTickets(status);
+        const ticketStatus = await ticketDao.viewPendingTickets();
+        // for(let i = 0; i < ticketStatus.Items.length; i++){
+        //     console.log(ticketStatus.Items[i].ticket_id);
+        //     pendingTickets.add(ticketStatus.Items[i].ticket_id);
+        // }
         res.send({
-            Ticket: tikcetStatus,
-            message: `Tickets with status: `
+            Ticket: ticketStatus,
+            message: `Tickets with status: ${ticketStatus}`
         });
     }catch(error){
         console.log(error);
@@ -76,6 +73,11 @@ const findTicketByStatus = async (req, res)=>{
 
 const updateTicketStatus = async (req, res)=>{
     const ticketid = req.params.id;
+    const ticketStatus = await ticketDao.viewPendingTickets();
+    for(let i = 0; i < ticketStatus.Items.length; i++){
+        console.log(ticketStatus.Items[i].ticket_id);
+        pendingTickets.add(ticketStatus.Items[i].ticket_id);
+    }
     if(!pendingTickets.has(ticketid)){
         res.send({
             message: `This ticket is already reviewed`
@@ -125,7 +127,7 @@ const submitTicket = (req, res)=>{
                 username = payload.username;
                 if(req.body.valid){
                     const currId = (uuid.v4());
-                    storePenddingTickets(currId);
+                    //storePenddingTickets(currId);
                     const ticket = ticketDao.submitTicket(currId, username, req.body.status,
                      req.body.amount, req.body.description, req.body.reviewer)
                         .then((data)=>{
@@ -168,7 +170,7 @@ const submitTicket = (req, res)=>{
 module.exports = {
     findTicketById,
     findTicketByUsername,
-    findTicketByStatus,
+    findPenddingTickets,
     updateTicketStatus,
     submitTicket
 }

@@ -39,21 +39,21 @@ function updateticketStatus(ticket_id, status, reviewer){
 function viewPreviousSubmisionByUsername(username){
     const params = {
         TableName: 'tickets',
+        FilterExpression: "#username = :value",
+        ExpressionAttributeNames: {"#username": "author"},
         ExpressionAttributeValues: {
-            ':value':{ S: username}
-        },
-        KeyConditionExpression: "author = :value",
-        ProjectionExpression: "author", //"status", "description"
+            ':value': username
+        }
     }
-    return docClient.query(params).promise();
+    return docClient.scan(params).promise();
 }
-function viewPendingTickets(status){
+function viewPendingTickets(){
     const params = {
         TableName: 'tickets',
         FilterExpression: "#status = :value",
         ExpressionAttributeNames: {"#status": "status"},
         ExpressionAttributeValues: {
-            ':value': status
+            ':value': 'Pendding'
         }
     }
     return docClient.scan(params).promise();
