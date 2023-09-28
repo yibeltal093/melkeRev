@@ -4,9 +4,14 @@ const userDao = require('../repository/userDao');
 const ticketDao = require('../repository/TicketDao');
 const jwtUtil = require('../utility/jwt_util');
 const uuid = require('uuid');
+let pendingTickets = new Set();
 
+function storePenddingTickets(ticketId){
+    pendingTickets.add(ticketId);
 
-
+    console.log(...pendingTickets);
+    return pendingTickets;
+}
 
 function isObjectEmpty(obj){
     for(const prop in obj){
@@ -71,6 +76,11 @@ const findTicketByStatus = async (req, res)=>{
 
 const updateTicketStatus = async (req, res)=>{
     const ticketid = req.params.id;
+    if(!pendingTickets.has(ticketid)){
+        res.send({
+            message: `This ticket is already reviewed`
+        })
+    }else{
     const currentTicket = await ticketDao.retrieveTicketByID(ticketid);
     const token = req.headers.authorization.split(' ')[1]; //['Bearer' '<token>']
     jwtUtil.verifyTokenandReturnPayLoad(token)
@@ -82,6 +92,7 @@ const updateTicketStatus = async (req, res)=>{
                         res.send({
                             message: `Ticket status is updated to: ${req.body.status}`
                         });
+                        pendingTickets.delete(ticketid);
                 }else{
                     res.statusCode = 401;
                     res.send({
@@ -101,6 +112,7 @@ const updateTicketStatus = async (req, res)=>{
                 message: 'Faild to Authenticate Token'
             })
         })
+    }
 }
 
 const submitTicket = (req, res)=>{
@@ -112,7 +124,9 @@ const submitTicket = (req, res)=>{
             if(payload.role === 'user'){
                 username = payload.username;
                 if(req.body.valid){
-                    const ticket = ticketDao.submitTicket(uuid.v4(), username, req.body.status,
+                    const currId = (uuid.v4());
+                    storePenddingTickets(currId);
+                    const ticket = ticketDao.submitTicket(currId, username, req.body.status,
                      req.body.amount, req.body.description, req.body.reviewer)
                         .then((data)=>{
                             res.statusCode = 201;
