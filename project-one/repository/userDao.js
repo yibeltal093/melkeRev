@@ -25,7 +25,7 @@ function registerUser(username, password, role){
         Item: {
             username,
             password,
-            role
+            role: "user"
         }
     }
     return docClient.put(params).promise();

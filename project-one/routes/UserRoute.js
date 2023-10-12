@@ -7,6 +7,8 @@ const userDao = require('../repository/userDao');
 
 const registerUser = async (req, res)=>{
     const body = req.body;
+    let employeeRole = body.role;
+    
     console.log(body);
     // const existedUser = await userDao.retrieveByUsername(JSON.stringify(body.username));
     // console.log(`current user is: ${existedUser}`);
@@ -19,7 +21,7 @@ const registerUser = async (req, res)=>{
                 message: `Username already existed with username: ${currUser.Item.username}`
             })
         }else{
-            const user = userDao.registerUser(req.body.username, req.body.password, req.body.role)
+            const user = userDao.registerUser(req.body.username, req.body.password, employeeRole)
             .then((data)=>{
                 res.statusCode = 201;
                 res.send({
@@ -34,6 +36,10 @@ const registerUser = async (req, res)=>{
                 })
             })
         }
+    }else{
+        res.send({
+            message :`Invalid inputs`
+        })
     }
     
 }

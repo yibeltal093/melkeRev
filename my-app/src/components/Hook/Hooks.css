@@ -1,0 +1,6 @@
+.buttonDiv button{
+    border: none;
+    margin: 10px;
+    background-color: rgb(194, 194, 201);
+    border-radius: 25%;
+}

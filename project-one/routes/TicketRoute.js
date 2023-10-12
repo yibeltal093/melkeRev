@@ -57,10 +57,6 @@ const findTicketByUsername = async (req, res)=>{
 const findPenddingTickets = async (req, res)=>{
     try{
         const ticketStatus = await ticketDao.viewPendingTickets();
-        // for(let i = 0; i < ticketStatus.Items.length; i++){
-        //     console.log(ticketStatus.Items[i].ticket_id);
-        //     pendingTickets.add(ticketStatus.Items[i].ticket_id);
-        // }
         res.send({
             Ticket: ticketStatus,
             message: `Tickets with status: ${ticketStatus}`
@@ -75,24 +71,30 @@ const updateTicketStatus = async (req, res)=>{
     const ticketid = req.params.id;
     const ticketStatus = await ticketDao.viewPendingTickets();
     for(let i = 0; i < ticketStatus.Items.length; i++){
-        console.log(ticketStatus.Items[i].ticket_id);
         pendingTickets.add(ticketStatus.Items[i].ticket_id);
     }
-    if(!pendingTickets.has(ticketid)){
-        res.send({
-            message: `This ticket is already reviewed`
-        })
-    }else{
+    
     const currentTicket = await ticketDao.retrieveTicketByID(ticketid);
+    
+    
     const token = req.headers.authorization.split(' ')[1]; //['Bearer' '<token>']
     jwtUtil.verifyTokenandReturnPayLoad(token)
         .then((payload)=>{
             if(!isObjectEmpty(currentTicket)){
-                if(payload.role === 'admin'){
+                if(!pendingTickets.has(ticketid)){
+                    res.send({
+                        message: `This ticket is already reviewed`
+                    })
+                }else if(req.body.status !== "Denied" && req.body.status !== "Approved"){
+                    res.send({
+                        message: `you can not be updated with status: ${req.body.status}`
+                    });
+                }else if(payload.role === 'admin'){
+                    
                     username = payload.username;
                         const ticket =  ticketDao.updateticketStatus(ticketid, req.body.status, username);
                         res.send({
-                            message: `Ticket status is updated to: ${req.body.status}`
+                            message: `Ticket was reviewed and status changed to: ${req.body.status}`
                         });
                         pendingTickets.delete(ticketid);
                 }else{
@@ -114,7 +116,6 @@ const updateTicketStatus = async (req, res)=>{
                 message: 'Faild to Authenticate Token'
             })
         })
-    }
 }
 
 const submitTicket = (req, res)=>{
